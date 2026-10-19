@@ -16,8 +16,8 @@ MODELS = [("FourCastNet3", "FourCastNet 3", "ensemble, 50 members"),
           ("ECMWF_ENS_control", "ECMWF ENS control", "single forecast")]
 
 PER_MODEL = {
- "01_position_error_mean.png": ("Mean track position error", "Mean great-circle distance between forecast and reference position against forecast lead time since genesis, one curve per genesis lead; shading is the 95% storm-bootstrap interval."),
- "02_position_error_mean_bars.png": ("Position error by day", "Mean track position error at whole days after genesis, by genesis lead, with 95% storm-bootstrap intervals."),
+ "01_position_error_mean.png": ("Mean track position error", "Mean great-circle distance between forecast and reference position against forecast lead time since genesis, one curve per genesis lead[; shading is the 95% storm-bootstrap interval]."),
+ "02_position_error_mean_bars.png": ("Position error by day", "Mean track position error at whole days after genesis, by genesis lead[, with 95% storm-bootstrap intervals]."),
  "03_spread_skill.png": ("Spread and skill", "RMS spread of the members about the ensemble mean, RMSE of the ensemble mean, and their ratio (spread–skill ratio)."),
  "04_detection.png": ("Detection", "Detection rate against forecast lead time since genesis, the outcome of each storm–lead case, and (ensembles) the share of cases with at least k associated members."),
  "05_bias_envelope_24h.png": ("Displacement envelope, 24 h genesis lead", "Per-storm 5–95% envelope of the members' zonal and meridional displacement from the reference; blue where the envelope contains the reference."),
@@ -44,7 +44,7 @@ COMP = {
  "C12_class_detection.png": ("Lows versus depressions – detection", "Detection rate for monsoon lows and depressions, pooled over genesis leads."),
  "S1_member_threshold_sensitivity.png": ("Sensitivity: member threshold", "How the ensemble-mean statistics change with the minimum share of members required to form a mean."),
  "S2_hit_radius_sensitivity.png": ("Sensitivity: hit radius", "Hit rate as a continuous function of the radius."),
- "S3_ssr_robustness.png": ("Robustness of the spread–skill ratio", "Spread–skill ratio by genesis lead with storm-bootstrap intervals, and its dependence on bin size."),
+ "S3_ssr_robustness.png": ("Robustness of the spread–skill ratio", "Spread–skill ratio by genesis lead[ with storm-bootstrap intervals], and its dependence on bin size."),
  "S4_sample_attrition.png": ("Sample size", "Reference storms still alive and storm-times with a forecast position, by genesis lead; the dotted line is the plotting floor."),
 }
 CASE = [(L, f"case_2024_V014_{L}h_{k}.png", k) for L in (24, 48, 72, 120) for k in ("ensembles", "deterministic")]
@@ -56,7 +56,6 @@ VSDESC = "Pooled over genesis leads, on the storm-times at which both systems ho
 
 if os.path.isdir(FIG):
     shutil.rmtree(FIG)
-sections = []          # (id, title, intro, [(relpath, title, caption)])
 
 def cp(src_rel, dst_rel):
     s, d = os.path.join(SRC, src_rel), os.path.join(FIG, dst_rel)
@@ -66,56 +65,92 @@ def cp(src_rel, dst_rel):
     shutil.copy2(s, d)
     return "figures/" + dst_rel
 
-items = []
-for f, (t, c) in COMP.items():
-    p = cp(f"comparison/{f}", f"comparison/all-storms/{f}")
-    if p: items.append((p, t, c))
-sections.append(("comparison", "Comparison of the six systems – all 133 storms", "Every system against every other on the same storms. Forecast lead time is measured in hours since the genesis of the reference storm; one panel per genesis lead (how early the forecast was started).", items))
-for cls, name in (("lows", "monsoon lows (77 storms)"), ("depressions", "monsoon depressions (56 storms)")):
+def cap(c, raw):
+    """Captions mark their interval clause as [ ... ]: kept for resampled figures,
+    dropped for raw ones, which carry no interval."""
+    import re
+    return re.sub(r"\[[^\]]*\]", "", c) if raw else c.replace("[", "").replace("]", "")
+
+def stat_sections(raw):
+    """Every statistical figure, either resampled (95% storm-bootstrap intervals) or raw
+    (the same figure without resampling, from the raw/ subfolder beside it)."""
+    sub = "raw/" if raw else ""
+    pre = "raw" if raw else "rs"
+    out = []
     items = []
     for f, (t, c) in COMP.items():
-        if f.startswith(("C12", "S1", "S2", "S3")):
-            continue
-        p = cp(f"comparison/{cls}/{f}", f"comparison/{cls}/{f}")
-        if p: items.append((p, t, c))
-    sections.append((f"comparison-{cls}", f"Comparison of the six systems – {name}", f"The comparison figures repeated for the {name} only, with the class taken from the Vishnu-algorithm label of each reference storm.", items))
-items = []
-for f, t in VS:
-    p = cp(f"vs_ens/{f}", f"ai-vs-ecmwf/all-storms/{f}")
-    if p: items.append((p, t, VSDESC))
-for cls in ("lows", "depressions"):
-    for f, t in VS:
-        p = cp(f"vs_ens/{cls}/{f}", f"ai-vs-ecmwf/{cls}/{f}")
-        if p: items.append((p, f"{t} – {cls}", VSDESC))
-sections.append(("ai-vs-ecmwf", "Each AI weather model against its ECMWF counterpart", "FourCastNet 3 and Aurora 1.5 are compared with the 50-member ECMWF ensemble; Pangu-Weather and FengWu, which are deterministic, with the ECMWF ENS control.", items))
-for slug, name, kind in MODELS:
+        p = cp(f"comparison/{sub}{f}", f"comparison/all-storms/{sub}{f}")
+        if p: items.append((p, t, cap(c, raw)))
+    out.append((f"{pre}-comparison", "Comparison of the six systems – all 133 storms", "Every system against every other on the same storms. Forecast lead time is measured in hours since the genesis of the reference storm; one panel per genesis lead (how early the forecast was started).", items))
+    for cls, name in (("lows", "monsoon lows (77 storms)"), ("depressions", "monsoon depressions (56 storms)")):
+        items = []
+        for f, (t, c) in COMP.items():
+            if f.startswith(("C12", "S1", "S2", "S3")):
+                continue
+            p = cp(f"comparison/{cls}/{sub}{f}", f"comparison/{cls}/{sub}{f}")
+            if p: items.append((p, t, cap(c, raw)))
+        out.append((f"{pre}-comparison-{cls}", f"Comparison of the six systems – {name}", f"The comparison figures repeated for the {name} only, with the class taken from the Vishnu-algorithm label of each reference storm.", items))
     items = []
-    for f, (t, c) in PER_MODEL.items():
-        p = cp(f"per_model/{slug}/{f}", f"per-model/{slug}/{f}")
-        if p: items.append((p, t, c))
-    sections.append((f"model-{slug}", f"{name} ({kind})", f"Every statistic for {name} on its own sample, one curve per genesis lead.", items))
+    for f, t in VS:
+        p = cp(f"vs_ens/{sub}{f}", f"ai-vs-ecmwf/all-storms/{sub}{f}")
+        if p: items.append((p, t, cap(VSDESC, raw)))
+    for cls in ("lows", "depressions"):
+        for f, t in VS:
+            p = cp(f"vs_ens/{cls}/{sub}{f}", f"ai-vs-ecmwf/{cls}/{sub}{f}")
+            if p: items.append((p, f"{t} – {cls}", cap(VSDESC, raw)))
+    out.append((f"{pre}-ai-vs-ecmwf", "Each AI weather model against its ECMWF counterpart", "FourCastNet 3 and Aurora 1.5 are compared with the 50-member ECMWF ensemble; Pangu-Weather and FengWu, which are deterministic, with the ECMWF ENS control.", items))
+    for slug, name, kind in MODELS:
+        items = []
+        for f, (t, c) in PER_MODEL.items():
+            p = cp(f"per_model/{slug}/{sub}{f}", f"per-model/{slug}/{sub}{f}")
+            if p: items.append((p, t, cap(c, raw)))
+        out.append((f"{pre}-model-{slug}", f"{name} ({kind})", f"Every statistic for {name} on its own sample, one curve per genesis lead.", items))
+    return out
+
+other = []
 items = []
 for L, f, k in CASE:
     p = cp(f"comparison/case_study/{f}", f"case-study-2024/{f}")
     label = "FourCastNet 3, Aurora 1.5 and ECMWF ENS" if k == "ensembles" else "Pangu-Weather, FengWu and the ECMWF ENS control"
     if p: items.append((p, f"{L} h genesis lead – {label}", "Forecast tracks of the August–September 2024 Bay of Bengal depression over the ERA5 fields used by the tracker (850 hPa streamfunction, mean sea-level pressure, 850 hPa relative humidity, 10 m wind) at the time of peak pressure drop; black is the ERA5 reference track."))
-sections.append(("case-study", "Case study: the August–September 2024 depression", "The depression that formed over the Bay of Bengal at the end of August 2024 and was followed by severe flooding in Andhra Pradesh and Telangana, shown for every genesis lead.", items))
+other.append(("case-study", "Case study: the August–September 2024 depression", "The depression that formed over the Bay of Bengal at the end of August 2024 and was followed by severe flooding in Andhra Pradesh and Telangana, shown for every genesis lead.", items))
 items = []
 p = cp("comparison/schematics/ate_cte_schematic.png", "schematics/ate_cte_schematic.png")
 if p: items.append((p, "Along- and cross-track error", "How the displacement of a forecast position is split into its components along and across the direction of motion of the reference storm."))
-sections.append(("schematics", "Schematics", "Illustrations of the verification method.", items))
+other.append(("schematics", "Schematics", "Illustrations of the verification method.", items))
+
+PARTS = [
+ ("resampled", "A", "Resampled — with 95% storm-bootstrap intervals", "rs", "95% CI",
+  "Each statistic is drawn with its 95% interval from 1000 bootstrap replicates that resample whole storms with replacement (shaded bands and error bars). These are the figures used in the thesis.",
+  stat_sections(False)),
+ ("raw", "B", "Raw — no resampling", "raw", "raw",
+  "The same figures drawn without the bootstrap: only the statistic itself, computed once from the 133 storms, with no shaded bands and no error bars. Samples, the common-sample rule and the plotting floor are unchanged. Each file sits in a raw/ subfolder beside its resampled version.",
+  stat_sections(True)),
+ ("other", "C", "Case study and schematics", "", "",
+  "Maps and illustrations that contain no averaged statistic, so they have no resampled or raw version.",
+  other),
+]
 
 E = html.escape
-nav = "\n".join(f'<a href="#{sid}">{E(t)}</a>' for sid, t, _, it in sections if it)
-body = []
-for sid, title, intro, its in sections:
-    if not its:
+nav, body, n = [], [], 0
+for pid, letter, ptitle, kind, tag, pintro, secs in PARTS:
+    secs = [x for x in secs if x[3]]
+    if not secs:
         continue
-    cards = "\n".join(
-        f'''<figure class="card"><a href="{p}" class="zoom" data-title="{E(t)}"><img loading="lazy" src="{p}" alt="{E(t)}"></a>
-<figcaption><strong>{E(t)}</strong><span>{E(c)}</span><a class="file" href="{p}" download>{E(p.split("/")[-1])}</a></figcaption></figure>''' for p, t, c in its)
-    body.append(f'<section id="{sid}"><h2>{E(title)}</h2><p class="intro">{E(intro)}</p><div class="grid">{cards}</div></section>')
-n = sum(len(i) for *_, i in sections)
+    nav.append(f'<p class="navh nav-{pid}"><a href="#{pid}">{letter}. {E(ptitle.split(" — ")[0])}</a></p>')
+    nav += [f'<a class="sub" href="#{sid}">{E(t)}</a>' for sid, t, _, _ in secs]
+    body.append(f'<div class="part part-{pid}" id="{pid}"><h2>{letter}. {E(ptitle)}</h2><p>{E(pintro)}</p></div>')
+    for sid, title, intro, its in secs:
+        badge = f'<span class="tag tag-{kind}">{E(tag)}</span>' if tag else ""
+        cards = "\n".join(
+            f'''<figure class="card"><a href="{p}" class="zoom" data-title="{E(t)}{" (" + tag + ")" if tag else ""}"><img loading="lazy" src="{p}" alt="{E(t)}"></a>
+<figcaption><strong>{badge}{E(t)}</strong><span>{E(c)}</span><a class="file" href="{p}" download>{E(p.split("/", 1)[1])}</a></figcaption></figure>''' for p, t, c in its)
+        body.append(f'<section id="{sid}" class="in-{pid}"><h3>{E(title)}</h3><p class="intro">{E(intro)}</p><div class="grid">{cards}</div></section>')
+        n += len(its)
+nav = "\n".join(nav)
+switch = ('<div class="switch"><a class="sw sw-resampled" href="#resampled"><b>A. Resampled</b>'
+          '<span>with 95% storm-bootstrap intervals</span></a>'
+          '<a class="sw sw-raw" href="#raw"><b>B. Raw</b><span>no resampling, statistic only</span></a></div>')
 
 page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -129,10 +164,10 @@ page = f"""<!doctype html>
 <p class="meta">Ratul Tarafder · BS-MS thesis, Indian Institute of Science Education and Research Pune, 2026 · {n} figures</p>
 </div></header>
 <div class="wrap layout">
-<nav class="side"><p class="navh">Contents</p>{nav}</nav>
+<nav class="side"><p class="navh"><a href="#about">About</a></p>{nav}</nav>
 <main>
 <section id="about"><h2>About these figures</h2>
-<p class="intro">Four AI weather models (FourCastNet 3, Aurora 1.5, Pangu-Weather, FengWu) are verified against the ECMWF ensemble (ENS) and its control on 133 monsoon low-pressure systems of 2018–2025. Reference tracks are found in ERA5 with the algorithm of Vishnu et al. (2020), and the same tracker is applied to every forecast. Each forecast was started 24, 48, 72 or 120 h before the genesis of the reference storm (the genesis lead). Shaded bands and error bars are 95% intervals from 1000 bootstrap replicates that resample whole storms. Click any figure to enlarge it; every file can be downloaded. The folder structure of this site mirrors the sections below.</p></section>
+<p class="intro">Four AI weather models (FourCastNet 3, Aurora 1.5, Pangu-Weather, FengWu) are verified against the ECMWF ensemble (ENS) and its control on 133 monsoon low-pressure systems of 2018–2025. Reference tracks are found in ERA5 with the algorithm of Vishnu et al. (2020), and the same tracker is applied to every forecast. Each forecast was started 24, 48, 72 or 120 h before the genesis of the reference storm (the genesis lead). Every statistical figure is given twice. Part A (resampled) carries 95% intervals from 1000 bootstrap replicates that resample whole storms; these are the figures used in the thesis. Part B (raw) shows the same figures without resampling: the statistic alone, with no bands or error bars. Click any figure to enlarge it; every file can be downloaded. The folder structure of this site mirrors the sections below, and each raw figure sits in a raw/ subfolder beside its resampled version.</p>{switch}</section>
 {''.join(body)}
 <footer><p>Figures generated by the analysis code of the thesis. © 2026 Ratul Tarafder.</p></footer>
 </main></div>
